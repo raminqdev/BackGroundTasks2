@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://thymeleaf.org">
+<head lang="en">
+    <title>Weathers</title>
+    <th:block th:include="layout/header"></th:block>
+</head>
+<body>
+<div class="container">
+    <div th:if="${not #lists.isEmpty(cities)}">
+        <h2>All Cities</h2>
+        <table class="table table-striped">
+            <tr>
+                <th>Name</th>
+                <th>Temperature</th>
+                <th>Description</th>
+            </tr>
+            <tr th:each="city : ${cities}">
+                <td th:text="${city.name}">Name</td>
+                <td th:text="${city.temp}">Temperature</td>
+                <td th:text="${city.description}">Description</td>
+            </tr>
+        </table>
+    </div>
+</div>
+</body>
+</html>

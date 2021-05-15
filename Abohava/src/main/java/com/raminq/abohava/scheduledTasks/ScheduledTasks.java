@@ -1,18 +1,21 @@
 package com.raminq.abohava.scheduledTasks;
 
-import jdk.nashorn.internal.parser.JSONParser;
-import lombok.var;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.raminq.abohava.config.ConfigModel;
+import com.raminq.abohava.model.Weather;
+import com.raminq.abohava.service.FileService;
+import com.raminq.abohava.service.SerializerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /*
 This example uses fixedRate, which specifies the interval between method invocations,
@@ -26,33 +29,78 @@ https://spring.io/guides/gs/scheduling-tasks/
 public class ScheduledTasks {
 
     private static final Logger log = LoggerFactory.getLogger(ScheduledTasks.class);
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
-    @Autowired
-    private RestTemplate restTemplate;
-    @Value("${openWeatherMap.Api}")
-    private String api;
-    @Value("${openWeatherMap.AppId}")
-    private String appId;
+    private final FileService fileService;
+    private final SerializerService serializerService;
+    private final RestTemplate restTemplate;
+    private final ConfigModel configModel;
 
-//
-//    public ScheduledTasks(RestTemplate restTemplate) {
-//        this.restTemplate = restTemplate;
-//    }
-
-    @Bean
-    public RestTemplate setTemplate() {
-        return new RestTemplate();
+    public ScheduledTasks(FileService fileService,
+                          SerializerService serializerService,
+                          RestTemplate restTemplate,
+                          ConfigModel configModel) {
+        this.fileService = fileService;
+        this.serializerService = serializerService;
+        this.restTemplate = restTemplate;
+        this.configModel = configModel;
     }
 
-    @Scheduled(fixedRate = 5000)
+    @Scheduled(initialDelay = 1000000, fixedRate = 50000000)
     public void reportCurrentTime() {
-        var response = restTemplate
-                .getForObject(api + "?q=tehran,IR&units=metric&appid=" + appId + "&lang=fa", String.class);
-        log.info("The time is now {} " + api, dateFormat.format(new Date()));
+        List<Weather> weathers = new ArrayList<>();
 
+        getCities().parallelStream().forEach(city -> {
 
+            String response = getWeatherResponse(city);
 
-        log.info(response);
+            log.info("##### " + Thread.currentThread().getName() + "  " + city);
+
+            Weather weather = getWeather(response);
+            weathers.add(weather);
+        });
+
+        String json = serializerService.serializeToJson(weathers);
+        fileService.writeToFile(json, configModel.getFilePath());
+    }
+
+    private String getWeatherResponse(String city) {
+        return restTemplate.getForObject(configModel.getApi() + "?q=" +
+                city + ",IR&units=metric&appid=" + configModel.getAppId() + "&lang=fa", String.class);
+    }
+
+    private Weather getWeather(String response) {
+        JsonObject jsonObject = JsonParser.parseString(response).getAsJsonObject();
+
+        Weather weather = new Weather();
+        weather.setName(jsonObject.get("name").getAsString());
+        weather.setTemp(jsonObject.get("main").getAsJsonObject().get("temp").getAsDouble());
+        weather.setDescription(jsonObject.get("weather").getAsJsonArray().get(0)
+                .getAsJsonObject().get("description").getAsString());
+
+        return weather;
+    }
+
+    private List<String> getCities() {
+        return Arrays.asList(
+                "Tehran",
+                "Mashhad",
+                "Isfahan",
+                "Karaj",
+                "Shiraz",
+                "Tabriz",
+                "Qom",
+                "Ahvaz",
+                "Kermanshah",
+                "Urmia",
+                "Rasht",
+                "Zahedan",
+                "Hamadan",
+                "Kerman",
+                "Yazd",
+                "Ardabil",
+                "Bandar Abbas",
+                "Arak",
+                "Sari"
+        );
     }
 }
 
